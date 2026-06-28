@@ -1,0 +1,1075 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Marketing Data Warehouse – Mock API",
+    "description": "Data Warehouse de Marketing completo com atribuição multi-touch, pipeline CRM, LTV:CAC, channel overlap e ROI Waterfall.\n\nEste contrato documenta todos os 18 endpoints REST disponíveis no Mock DW para consulta de métricas de marketing digital.",
+    "version": "2.0.0",
+    "contact": {
+      "name": "ROI Agent Team"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Servidor local mock"
+    }
+  ],
+  "tags": [
+    { "name": "Meta", "description": "Endpoints de metadata e schema do Data Warehouse" },
+    { "name": "Channels", "description": "Canais de marketing com metadata (CPC, tipo, modelo de atribuição)" },
+    { "name": "Campaigns", "description": "Campanhas com objetivo, budget, período e performance completa" },
+    { "name": "Spend", "description": "Gasto diário por campanha (impressões, cliques, spend)" },
+    { "name": "Leads", "description": "Leads individuais com status do pipeline (MQL, SQL, oportunidade, convertido, perdido)" },
+    { "name": "Conversions", "description": "Vendas com caminho de atribuição multi-touch e crédito por canal" },
+    { "name": "Attribution", "description": "Modelos de atribuição: first_click, last_click, linear, time_decay, data_driven" },
+    { "name": "Pipeline", "description": "Funil CRM consolidado (MQL → SQL → Oportunidade → Won)" },
+    { "name": "Customers", "description": "Clientes com LTV real e predito, churn risk" },
+    { "name": "Analytics", "description": "Métricas analíticas: CAC, LTV:CAC ratio, Channel Overlap, ROI Waterfall" }
+  ],
+  "paths": {
+    "/v2/dw/schema": {
+      "get": {
+        "tags": ["Meta"],
+        "summary": "Schema do Data Warehouse",
+        "description": "Retorna metadados do DW: tabelas disponíveis, conceitos de marketing, modelos de atribuição e total de registros.",
+        "operationId": "dw_schema",
+        "responses": {
+          "200": {
+            "description": "Schema do Data Warehouse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DwSchema"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/dw/channels": {
+      "get": {
+        "tags": ["Channels"],
+        "summary": "Listar canais de marketing",
+        "description": "Retorna todos os canais de marketing cadastrados com tipo, CPC médio e modelo de atribuição padrão.",
+        "operationId": "list_channels",
+        "responses": {
+          "200": {
+            "description": "Lista de canais",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChannelOut"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/dw/channels/{channel_id}": {
+      "get": {
+        "tags": ["Channels"],
+        "summary": "Detalhe do canal",
+        "description": "Retorna informações detalhadas de um canal específico por ID.",
+        "operationId": "get_channel_detail",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID do canal"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalhe do canal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Canal não encontrado"
+          }
+        }
+      }
+    },
+    "/v2/dw/campaigns": {
+      "get": {
+        "tags": ["Campaigns"],
+        "summary": "Listar campanhas",
+        "description": "Retorna todas as campanhas com opção de filtro por canal e/ou objetivo.",
+        "operationId": "list_campaigns",
+        "parameters": [
+          {
+            "name": "canal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Filtrar por ID do canal"
+          },
+          {
+            "name": "objetivo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["conversao", "alcance", "lead", "retencao", "branding", "venda"]
+            },
+            "description": "Filtrar por objetivo da campanha"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de campanhas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CampaignOut"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/dw/campaigns/{campaign_id}": {
+      "get": {
+        "tags": ["Campaigns"],
+        "summary": "Detalhe da campanha",
+        "description": "Retorna informações detalhadas de uma campanha específica por ID.",
+        "operationId": "get_campaign_detail",
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID da campanha"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalhe da campanha",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Campanha não encontrada"
+          }
+        }
+      }
+    },
+    "/v2/dw/campaigns/{campaign_id}/daily-spend": {
+      "get": {
+        "tags": ["Spend"],
+        "summary": "Gasto diário da campanha",
+        "description": "Retorna o gasto diário de uma campanha com impressões e cliques, com opção de filtro por período.",
+        "operationId": "campaign_daily_spend",
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID da campanha"
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Data inicial (YYYY-MM-DD)"
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Data final (YYYY-MM-DD)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de gasto diário",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DailySpendOut"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Campanha não encontrada"
+          }
+        }
+      }
+    },
+    "/v2/dw/leads": {
+      "get": {
+        "tags": ["Leads"],
+        "summary": "Listar leads",
+        "description": "Retorna leads com filtros opcionais por campanha, canal e status. Limit padrão de 50 registros.",
+        "operationId": "list_leads",
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Filtrar por ID da campanha"
+          },
+          {
+            "name": "canal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Filtrar por ID do canal"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["mql", "sql", "oportunidade", "convertido", "perdido"]
+            },
+            "description": "Filtrar por status do lead"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "maximum": 500
+            },
+            "description": "Máximo de registros a retornar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de leads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LeadOut"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/dw/conversions": {
+      "get": {
+        "tags": ["Conversions"],
+        "summary": "Listar conversões",
+        "description": "Retorna conversões (vendas) com caminho de atribuição multi-touch e crédito calculado por modelo de atribuição.",
+        "operationId": "list_conversions",
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Filtrar por ID da campanha"
+          },
+          {
+            "name": "canal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Filtrar por ID do canal presente no path de atribuição"
+          },
+          {
+            "name": "modelo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "last_click",
+              "enum": ["first_click", "last_click", "linear", "time_decay", "data_driven"]
+            },
+            "description": "Modelo de atribuição para distribuir crédito da receita entre canais"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "maximum": 500
+            },
+            "description": "Máximo de registros a retornar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de conversões com atribuição",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConversionOut"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/dw/attribution-models": {
+      "get": {
+        "tags": ["Attribution"],
+        "summary": "Listar modelos de atribuição",
+        "description": "Retorna todos os modelos de atribuição disponíveis com descrição de cada um.",
+        "operationId": "attribution_models",
+        "responses": {
+          "200": {
+            "description": "Modelos de atribuição",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AttributionModel"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/dw/attribution/simular": {
+      "post": {
+        "tags": ["Attribution"],
+        "summary": "Simular atribuição",
+        "description": "Simula como a receita de uma campanha seria distribuída entre canais com diferentes modelos de atribuição.",
+        "operationId": "simulate_attribution",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttributeSimulationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultado da simulação de atribuição",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttributeSimulationResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Campanha não encontrada"
+          }
+        }
+      }
+    },
+    "/v2/dw/pipeline": {
+      "get": {
+        "tags": ["Pipeline"],
+        "summary": "Visão do funil CRM",
+        "description": "Retorna o pipeline CRM consolidado por estágio (MQL → SQL → Oportunidade → Won) com quantidade e valor total, opcionalmente filtrado por campanha ou canal.",
+        "operationId": "pipeline_overview",
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Filtrar por ID da campanha"
+          },
+          {
+            "name": "canal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Filtrar por ID do canal"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pipeline CRM por estágio",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PipelineStage"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/dw/customers": {
+      "get": {
+        "tags": ["Customers"],
+        "summary": "Listar clientes",
+        "description": "Retorna clientes com LTV real e predito, com opção de filtro por canal de aquisição e risco de churn.",
+        "operationId": "list_customers",
+        "parameters": [
+          {
+            "name": "canal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Filtrar por ID do canal de aquisição"
+          },
+          {
+            "name": "churn_risk",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["low", "medium", "high"]
+            },
+            "description": "Filtrar por risco de churn"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "maximum": 500
+            },
+            "description": "Máximo de registros a retornar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de clientes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CustomerOut"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/dw/cac-analysis": {
+      "get": {
+        "tags": ["Analytics"],
+        "summary": "Análise de CAC",
+        "description": "Retorna o Custo de Aquisição por Cliente (CAC) por canal e o CAC blendado (média ponderada).",
+        "operationId": "cac_analysis",
+        "responses": {
+          "200": {
+            "description": "Análise de CAC por canal e blendado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CacAnalysis"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/dw/ltv-cac-ratio": {
+      "get": {
+        "tags": ["Analytics"],
+        "summary": "LTV:CAC ratio",
+        "description": "Retorna a relação LTV:CAC por canal. Ratio >3x é saudável, 1-3x aceitável, <1x crítico.",
+        "operationId": "ltv_cac_ratio",
+        "responses": {
+          "200": {
+            "description": "LTV:CAC ratio por canal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LtvCacRatio"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/dw/overlap": {
+      "get": {
+        "tags": ["Analytics"],
+        "summary": "Channel overlap",
+        "description": "Retorna a matriz de sobreposição entre canais, mostrando co-ocorrência em paths de conversão e lift.",
+        "operationId": "channel_overlap",
+        "responses": {
+          "200": {
+            "description": "Sobreposição entre canais",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OverlapOut"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/dw/roi-waterfall": {
+      "get": {
+        "tags": ["Analytics"],
+        "summary": "ROI Waterfall",
+        "description": "Demonstra o ROI Waterfall: de Media Spend até Lucro Líquido, passando por Receita Atribuída, Lucro Bruto e Custos Operacionais (15%). Pode ser filtrado por campanha.",
+        "operationId": "roi_waterfall",
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Filtrar por ID da campanha. Se omitido, retorna consolidado de todos os canais."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ROI Waterfall",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoiWaterfallResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/dw/campaigns/{campaign_id}/performance": {
+      "get": {
+        "tags": ["Campaigns"],
+        "summary": "Performance completa da campanha",
+        "description": "Visão consolidada de performance de uma campanha: métricas de mídia (spend, impressions, clicks, CTR), resultados (leads, vendas, receita, ticket médio), eficiência (CPL, CAC, CVR), ROI (ROAS, ROI simples), pipeline (MQL→Won) e modelo de atribuição.",
+        "operationId": "campaign_performance",
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID da campanha"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Performance completa da campanha",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignPerformance"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Campanha não encontrada"
+          }
+        }
+      }
+    },
+    "/v2/dw/query": {
+      "post": {
+        "tags": ["Meta"],
+        "summary": "Query SQL simulada",
+        "description": "Endpoint para o agente LangChain consultar o DW. No mock, retorna uma sugestão de como interpretar a query. Num DW real, executaria no BigQuery / Snowflake.",
+        "operationId": "dw_query",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultado da query simulada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DwSchema": {
+        "type": "object",
+        "description": "Schema do Data Warehouse de Marketing",
+        "properties": {
+          "data_warehouse": {
+            "type": "string",
+            "example": "marketing_dw"
+          },
+          "versao": {
+            "type": "string",
+            "example": "2.0"
+          },
+          "tabelas": {
+            "type": "object",
+            "description": "Tabelas disponíveis no DW",
+            "properties": {
+              "dim_channel": { "type": "string" },
+              "dim_campaign": { "type": "string" },
+              "fact_daily_spend": { "type": "string" },
+              "fact_leads": { "type": "string" },
+              "fact_conversions": { "type": "string" },
+              "fact_crm_pipeline": { "type": "string" },
+              "dim_customer": { "type": "string" },
+              "fact_channel_overlap": { "type": "string" }
+            }
+          },
+          "conceitos_marketing": {
+            "type": "object",
+            "description": "Conceitos de marketing digital"
+          },
+          "total_registros": {
+            "type": "object",
+            "description": "Total de registros em cada tabela"
+          }
+        }
+      },
+      "ChannelOut": {
+        "type": "object",
+        "description": "Canal de marketing",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "nome": { "type": "string", "example": "Google Ads" },
+          "tipo": {
+            "type": "string",
+            "enum": ["search", "social", "video", "social_b2b", "organic", "display", "partnership", "marketplace"],
+            "example": "search"
+          },
+          "modelo_atribuicao": {
+            "type": "string",
+            "enum": ["first_click", "last_click", "linear", "time_decay", "data_driven"],
+            "example": "data_driven"
+          },
+          "cpc_medio": { "type": "number", "format": "float", "example": 2.80 }
+        },
+        "required": ["id", "nome", "tipo", "modelo_atribuicao", "cpc_medio"]
+      },
+      "CampaignOut": {
+        "type": "object",
+        "description": "Campanha de marketing",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "nome": { "type": "string", "example": "Google Ads - Inverno 2026" },
+          "canal": { "type": "string", "example": "Google Ads" },
+          "objetivo": {
+            "type": "string",
+            "enum": ["conversao", "alcance", "lead", "retencao", "branding", "venda"],
+            "example": "conversao"
+          },
+          "budget_total": { "type": "number", "format": "float", "example": 15000.0 },
+          "inicio": { "type": "string", "format": "date", "example": "2026-04-01" },
+          "fim": { "type": "string", "format": "date", "example": "2026-06-30" }
+        },
+        "required": ["id", "nome", "canal", "objetivo", "budget_total", "inicio", "fim"]
+      },
+      "DailySpendOut": {
+        "type": "object",
+        "description": "Gasto diário de uma campanha",
+        "properties": {
+          "data": { "type": "string", "format": "date", "example": "2026-04-01" },
+          "spend": { "type": "number", "format": "float", "example": 2450.75 },
+          "impressions": { "type": "integer", "example": 125000 },
+          "clicks": { "type": "integer", "example": 3200 }
+        },
+        "required": ["data", "spend", "impressions", "clicks"]
+      },
+      "LeadOut": {
+        "type": "object",
+        "description": "Lead individual",
+        "properties": {
+          "lead_id": { "type": "integer", "example": 1 },
+          "data": { "type": "string", "format": "date", "example": "2026-04-15" },
+          "status": {
+            "type": "string",
+            "enum": ["mql", "sql", "oportunidade", "convertido", "perdido"],
+            "example": "mql"
+          },
+          "custo_lead": { "type": "number", "format": "float", "example": 35.50 },
+          "campaign_id": { "type": "integer", "example": 1 },
+          "canal_nome": { "type": "string", "example": "Google Ads" }
+        },
+        "required": ["lead_id", "data", "status", "custo_lead", "campaign_id"]
+      },
+      "ConversionOut": {
+        "type": "object",
+        "description": "Conversão (venda) com atribuição multi-touch",
+        "properties": {
+          "conv_id": { "type": "integer", "example": 1 },
+          "data": { "type": "string", "format": "date", "example": "2026-05-10" },
+          "receita": { "type": "number", "format": "float", "example": 1250.00 },
+          "itens": { "type": "integer", "example": 3 },
+          "dias_para_converter": { "type": "integer", "example": 15 },
+          "attribution_path": {
+            "type": "array",
+            "description": "Caminho de atribuição: canais que o cliente tocou antes de converter",
+            "items": { "type": "integer" },
+            "example": [3, 1, 2]
+          },
+          "canais_credito": {
+            "type": "object",
+            "description": "Distribuição da receita entre canais conforme modelo de atribuição",
+            "additionalProperties": { "type": "number" },
+            "example": { "1": 416.67, "2": 416.67, "3": 416.67 }
+          }
+        },
+        "required": ["conv_id", "data", "receita", "itens", "dias_para_converter", "attribution_path"]
+      },
+      "AttributionModel": {
+        "type": "object",
+        "description": "Modelo de atribuição",
+        "properties": {
+          "modelo": {
+            "type": "string",
+            "enum": ["first_click", "last_click", "linear", "time_decay", "data_driven"]
+          },
+          "descricao": { "type": "string" }
+        }
+      },
+      "AttributeSimulationRequest": {
+        "type": "object",
+        "description": "Requisição para simular atribuição em uma campanha",
+        "properties": {
+          "campaign_id": {
+            "type": "integer",
+            "description": "ID da campanha",
+            "example": 1
+          },
+          "modelo": {
+            "type": "string",
+            "description": "Modelo de atribuição",
+            "enum": ["first_click", "last_click", "linear", "time_decay", "data_driven"],
+            "default": "data_driven",
+            "example": "linear"
+          }
+        },
+        "required": ["campaign_id"]
+      },
+      "AttributeSimulationResponse": {
+        "type": "object",
+        "description": "Resultado da simulação de atribuição",
+        "properties": {
+          "campanha": { "type": "string", "example": "Google Ads - Inverno 2026" },
+          "modelo": { "type": "string", "example": "linear" },
+          "distribuicao": {
+            "type": "object",
+            "description": "Receita atribuída a cada canal",
+            "additionalProperties": { "type": "number" },
+            "example": { "Google Ads": 45200.50, "YouTube": 22300.75, "Organic Search": 18900.25 }
+          }
+        },
+        "required": ["campanha", "modelo", "distribuicao"]
+      },
+      "PipelineStage": {
+        "type": "object",
+        "description": "Estágio do pipeline CRM",
+        "properties": {
+          "estagio": {
+            "type": "string",
+            "enum": ["mql", "sql", "oportunidade", "won"],
+            "example": "mql"
+          },
+          "quantidade": { "type": "integer", "example": 45 },
+          "valor_total": { "type": "number", "format": "float", "example": 125000.00 }
+        },
+        "required": ["estagio", "quantidade", "valor_total"]
+      },
+      "CustomerOut": {
+        "type": "object",
+        "description": "Cliente com métricas de LTV",
+        "properties": {
+          "customer_id": { "type": "integer", "example": 1 },
+          "canal_aquisicao": { "type": "integer", "example": 1 },
+          "ltv_12m": { "type": "number", "format": "float", "example": 4500.00 },
+          "ltv_total": { "type": "number", "format": "float", "example": 12000.00 },
+          "total_compras": { "type": "integer", "example": 8 },
+          "churn_risk": {
+            "type": "string",
+            "enum": ["low", "medium", "high"],
+            "example": "low"
+          }
+        },
+        "required": ["customer_id", "canal_aquisicao", "ltv_12m", "ltv_total", "total_compras", "churn_risk"]
+      },
+      "CacAnalysisItem": {
+        "type": "object",
+        "description": "CAC de um canal específico",
+        "properties": {
+          "canal": { "type": "string", "example": "Google Ads" },
+          "investimento": { "type": "number", "format": "float", "example": 85000.00 },
+          "leads": { "type": "integer", "example": 1200 },
+          "vendas": { "type": "integer", "example": 180 },
+          "cac": { "type": "number", "format": "float", "example": 472.22 }
+        },
+        "required": ["canal", "investimento", "leads", "vendas", "cac"]
+      },
+      "CacAnalysis": {
+        "type": "object",
+        "description": "Análise completa de CAC",
+        "properties": {
+          "por_canal": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/CacAnalysisItem" }
+          },
+          "blended": {
+            "type": "object",
+            "properties": {
+              "investimento_total": { "type": "number", "example": 450000.00 },
+              "vendas_total": { "type": "integer", "example": 850 },
+              "cac_blendado": { "type": "number", "example": 529.41 }
+            }
+          }
+        },
+        "required": ["por_canal", "blended"]
+      },
+      "LtvCacRatio": {
+        "type": "object",
+        "description": "LTV:CAC ratio por canal",
+        "properties": {
+          "canal": { "type": "string", "example": "Google Ads" },
+          "cac": { "type": "number", "format": "float", "example": 472.22 },
+          "ltv_medio_12m": { "type": "number", "format": "float", "example": 3200.00 },
+          "ratio": { "type": "number", "format": "float", "example": 6.78 },
+          "saude": {
+            "type": "string",
+            "enum": ["saudável", "aceitável", "crítico"],
+            "example": "saudável"
+          }
+        },
+        "required": ["canal", "cac", "ltv_medio_12m", "ratio", "saude"]
+      },
+      "OverlapOut": {
+        "type": "object",
+        "description": "Sobreposição entre dois canais",
+        "properties": {
+          "canal_a": { "type": "string", "example": "Google Ads" },
+          "canal_b": { "type": "string", "example": "Meta Ads" },
+          "coocorrencia_pct": { "type": "number", "format": "float", "example": 35.2 },
+          "lift": { "type": "number", "format": "float", "example": 1.85 }
+        },
+        "required": ["canal_a", "canal_b", "coocorrencia_pct", "lift"]
+      },
+      "RoiWaterfall": {
+        "type": "object",
+        "description": "Etapa do ROI Waterfall",
+        "properties": {
+          "etapa": {
+            "type": "string",
+            "example": "1. Media Spend Total"
+          },
+          "valor": { "type": "number", "format": "float", "example": 125000.00 }
+        },
+        "required": ["etapa", "valor"]
+      },
+      "RoiWaterfallResponse": {
+        "type": "object",
+        "description": "Resultado do ROI Waterfall",
+        "properties": {
+          "campanha": {
+            "type": "string",
+            "example": "Google Ads - Inverno 2026 (Google Ads)"
+          },
+          "waterfall": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/RoiWaterfall" }
+          },
+          "roi_liquido_pct": {
+            "type": "number",
+            "format": "float",
+            "example": 185.42
+          }
+        },
+        "required": ["campanha", "waterfall", "roi_liquido_pct"]
+      },
+      "CampaignPerformance": {
+        "type": "object",
+        "description": "Performance completa de uma campanha",
+        "properties": {
+          "campanha": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "integer" },
+              "nome": { "type": "string" },
+              "canal": { "type": "string" },
+              "objetivo": { "type": "string" }
+            }
+          },
+          "midia": {
+            "type": "object",
+            "properties": {
+              "spend_total": { "type": "number" },
+              "impressions": { "type": "integer" },
+              "clicks": { "type": "integer" },
+              "ctr_pct": { "type": "number" }
+            }
+          },
+          "resultados": {
+            "type": "object",
+            "properties": {
+              "leads": { "type": "integer" },
+              "vendas": { "type": "integer" },
+              "receita": { "type": "number" },
+              "ticket_medio": { "type": "number" }
+            }
+          },
+          "eficiencia": {
+            "type": "object",
+            "properties": {
+              "cpl": { "type": "number" },
+              "cac": { "type": "number" },
+              "cvr_pct": { "type": "number" }
+            }
+          },
+          "roi": {
+            "type": "object",
+            "properties": {
+              "roas": { "type": "number" },
+              "roi_simples_pct": { "type": "number" }
+            }
+          },
+          "pipeline": {
+            "type": "object",
+            "properties": {
+              "mql": { "type": "integer" },
+              "sql": { "type": "integer" },
+              "oportunidade": { "type": "integer" },
+              "won": { "type": "integer" },
+              "conversao_mql_to_won_pct": { "type": "number" }
+            }
+          },
+          "atribuicao_tipica": { "type": "string" }
+        },
+        "required": ["campanha", "midia", "resultados", "eficiencia", "roi", "pipeline", "atribuicao_tipica"]
+      },
+      "QueryRequest": {
+        "type": "object",
+        "description": "Requisição de query SQL simulada",
+        "properties": {
+          "sql": {
+            "type": "string",
+            "description": "Query SQL simulada (não executada de verdade)",
+            "example": "SELECT * FROM fact_conversions WHERE campaign_id = 1"
+          },
+          "params": {
+            "type": "object",
+            "description": "Parâmetros opcionais da query",
+            "nullable": true
+          }
+        },
+        "required": ["sql"]
+      },
+      "QueryResponse": {
+        "type": "object",
+        "description": "Resposta da query SQL simulada",
+        "properties": {
+          "status": { "type": "string", "example": "query_received" },
+          "sql_recebida": { "type": "string" },
+          "tabelas_identificadas": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "nota": { "type": "string" },
+          "sugestao": { "type": "string" }
+        },
+        "required": ["status", "sql_recebida", "tabelas_identificadas", "nota", "sugestao"]
+      }
+    }
+  }
+}
