@@ -12,12 +12,12 @@ Arquitetura LangGraph (inspirada em opencode_agent_langgraph.py):
 
 Uso:
   export OPENAI_API_KEY="sua-chave"
-  python agent.py                        # modo interativo
-  python agent.py --demo                 # perguntas pré-definidas
+  uv run agent.py                        # modo interativo
+  uv run agent.py --demo                 # perguntas pré-definidas
 
 Requer o MCP server rodando:
-  python mcp_server.py                    # http://localhost:9000/mcp
-  python mock_dw_marketing.py             # http://localhost:8000 (DW)
+  uv run mcp_server.py                    # http://localhost:9000/mcp
+  uvicorn mock_dw_marketing:app --port 8000  # http://localhost:8000 (DW)
 """
 
 import argparse
@@ -141,6 +141,21 @@ def criar_llm_real():
 
 # ── EXECUÇÃO ──
 
+def _extract_text(content) -> str:
+    """Extrai texto limpo do content de uma mensagem."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                parts.append(item["text"])
+            elif isinstance(item, str):
+                parts.append(item)
+        return "\n".join(parts)
+    return str(content)
+
+
 async def run_agent(llm, tools, user_input: str):
     """Processa uma pergunta e retorna a resposta final."""
     agent = create_agent_roi(llm, tools)
@@ -154,9 +169,11 @@ async def run_agent(llm, tools, user_input: str):
                         line = f"  🛠  {tc['name']}({tc['args']})"
                         print(line)
                         output.append(line)
-                elif hasattr(m, "content") and m.content:
-                    print(f"  {m.content}")
-                    output.append(m.content)
+                elif isinstance(m, AIMessage) and m.content:
+                    text = _extract_text(m.content)
+                    if text.strip():
+                        print(f"  {text}")
+                        output.append(text)
     return "\n".join(output)
 
 
@@ -210,18 +227,18 @@ async def main():
             print("⚠️  OPENAI_API_KEY não encontrada.")
             print("   Exporte a chave ou use --mock para modo de demonstração.\n")
             print("   export OPENAI_API_KEY='sua-chave-aqui'")
-            print("   python agent.py\n")
+            print("   uv run agent.py\n")
             sys.exit(1)
 
-    async with MultiServerMCPClient(
+    client = MultiServerMCPClient(
         {"marketing-dw": {"transport": "http", "url": MCP_SERVER_URL}}
-    ) as client:
-        tools = client.get_tools()
+    )
+    tools = await client.get_tools()
 
-        if args.demo:
-            await modo_demo(llm, tools)
-        else:
-            await modo_interativo(llm, tools)
+    if args.demo:
+        await modo_demo(llm, tools)
+    else:
+        await modo_interativo(llm, tools)
 
 
 if __name__ == "__main__":

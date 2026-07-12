@@ -14,6 +14,7 @@ Agente de IA que consulta um **Marketing Data Warehouse** para responder pergunt
 - [Catálogo de Endpoints](#catálogo-de-endpoints)
 - [Modelos de Atribuição](#modelos-de-atribuição)
 - [Métricas de Marketing](#métricas-de-marketing)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -107,32 +108,72 @@ Agente de IA que consulta um **Marketing Data Warehouse** para responder pergunt
 
 ## Quick Start
 
+### Pré-requisitos
+
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/) (recomendado) ou pip
+
+### Instalação
+
 ```bash
-# 1. Instale as dependências
+# Clone o repositório
+git clone <url-do-repo>
+cd roi-agent-mcp
+
+# Instale as dependências
 uv sync          # ou: pip install -e .
-
-# 2. Terminal 1 — Mock Data Warehouse
-python mock_dw_marketing.py
-# → http://localhost:8000/docs (Swagger)
-
-# 3. Terminal 2 — MCP Server
-python mcp_server.py
-# → http://localhost:9000/mcp
-
-# 4. Terminal 3 — Agente (modo interativo)
-export OPENAI_API_KEY="sk-..."
-python agent.py
 ```
+
+### Execução
+
+O sistema requer **3 serviços** rodando simultaneamente. Abra 3 terminais separados:
+
+**Terminal 1 — Data Warehouse Mock (porta 8000)**
+
+```bash
+uvicorn mock_dw_marketing:app --port 8000
+# → http://localhost:8000/docs (Swagger UI)
+```
+
+**Terminal 2 — MCP Server (porta 9000)**
+
+```bash
+uv run mcp_server.py
+# → http://localhost:9000/mcp
+```
+
+**Terminal 3 — Agente IA**
+
+```bash
+export OPENAI_API_KEY="sk-..."
+uv run agent.py
+```
+
+### Verificação Rápida
+
+1. Acesse `http://localhost:8000/docs` — deve mostrar o Swagger do DW
+2. Acesse `http://localhost:9000/mcp` — deve responder (GET com health check)
+3. No Terminal 3, digite uma pergunta como "Quais campanhas estão ativas?"
 
 ---
 
 ## Modos de Operação
 
+**Importante:** Antes de usar qualquer modo, certifique-se de que os serviços estejam rodando:
+
+```bash
+# Terminal 1
+uvicorn mock_dw_marketing:app --port 8000
+
+# Terminal 2
+uv run mcp_server.py
+```
+
 ### Modo Interativo (padrão)
 
 ```bash
 export OPENAI_API_KEY="sk-..."
-python agent.py
+uv run agent.py
 ```
 
 Agente com LLM real (OpenAI GPT-4) para raciocinar, selecionar ferramentas e gerar respostas em português.
@@ -140,7 +181,7 @@ Agente com LLM real (OpenAI GPT-4) para raciocinar, selecionar ferramentas e ger
 ### Modo Demo
 
 ```bash
-python agent.py --demo
+uv run agent.py --demo
 ```
 
 Executa 8 perguntas pré-definidas automaticamente. Requer `OPENAI_API_KEY` ou use com `--mock`.
@@ -148,13 +189,28 @@ Executa 8 perguntas pré-definidas automaticamente. Requer `OPENAI_API_KEY` ou u
 ### Modo Mock (sem API key)
 
 ```bash
-python agent.py --mock
+uv run agent.py --mock
 ```
 
 Usa um `RunnableLambda` que simula a seleção de ferramentas baseada em palavras-chave. Ideal para testar o fluxo sem gastar tokens. **Limitação:** apenas 1 rodada de tool call, sem raciocínio multi-etapas.
 
+### Exemplos de Perguntas para Testar
+
+| Pergunta | O que testa |
+|---|---|
+| `Quais campanhas estão ativas?` | Listagem de campanhas |
+| `Qual a performance da campanha 1?` | Métricas de uma campanha específica |
+| `Qual canal tem o menor CAC?` | Análise de CAC por canal |
+| `Qual a saúde do LTV:CAC por canal?` | Ratios LTV:CAC |
+| `Simule a atribuição time_decay para a campanha 1` | Simulação de atribuição multi-touch |
+| `Compare a campanha 1 com a campanha 2. Qual é melhor?` | Análise comparativa |
+| `Qual é o ROI líquido consolidado?` | ROI Waterfall |
+| `Quais canais mais se sobrepõem?` | Channel overlap |
+
+Modo rápido (sem API key):
+
 ```bash
-python agent.py --mock --demo   # demo completa sem API key
+uv run agent.py --mock --demo   # executa as 8 perguntas automaticamente
 ```
 
 ---
@@ -315,4 +371,46 @@ Lift = P(conversão | canal A + B) / P(conversão | canal A sozinho)
 
 Lift > 1  → sinergia positiva (canais se reforçam)
 Lift < 1  → canibalização (canais competem entre si)
+```
+
+---
+
+## Troubleshooting
+
+### "Connection refused" no agente
+
+Verifique se os outros serviços estão rodando:
+
+```bash
+# Testar DW mock
+curl http://localhost:8000/v2/dw/schema
+
+# Testar MCP server
+curl http://localhost:9000/mcp
+```
+
+### "OPENAI_API_KEY não encontrada"
+
+```bash
+export OPENAI_API_KEY="sk-..."
+# Ou use o modo mock sem API key
+uv run agent.py --mock
+```
+
+### Portas já em uso
+
+Se as portas 8000 ou 9000 estiverem ocupadas, verifique o que está usando:
+
+```bash
+lsof -i :8000
+lsof -i :9000
+```
+
+### Erro de dependências
+
+```bash
+# Reinstale as dependências
+uv sync --force
+# Ou com pip
+pip install -e . --force-reinstall
 ```
